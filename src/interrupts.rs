@@ -106,7 +106,6 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(
     }
 }
 
-
 #[test_case]
 fn test_breakpoint_exception() {
     // invoke a breakpoint exception
