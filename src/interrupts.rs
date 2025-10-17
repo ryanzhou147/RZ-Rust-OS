@@ -1,6 +1,5 @@
 use crate::{print, println, gdt, hlt_loop};
 use lazy_static::lazy_static;
-use pc_keyboard::DecodedKey;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 use pic8259::ChainedPics;
 use spin;
