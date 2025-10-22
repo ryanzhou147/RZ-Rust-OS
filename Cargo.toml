@@ -35,6 +35,11 @@ features = ["alloc"]
 version = "0.2.0"
 default-features = false
 
+[dependencies.futures-util]
+version = "0.3.4"
+default-features = false
+features = ["alloc"]
+
 [[bin]]
 name = "rz_rust_os"
 test = true
