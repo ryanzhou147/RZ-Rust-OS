@@ -13,6 +13,7 @@ pub mod interrupts;
 pub mod memory;
 pub mod serial;
 pub mod vga_buffer;
+pub mod fs;
 pub mod allocator;
 pub mod task;
 
@@ -84,6 +85,17 @@ entry_point!(test_kernel_main);
 #[cfg(test)]
 fn test_kernel_main(_boot_info: &'static BootInfo) -> ! {
     init();
+    // Initialize memory and heap so tests can use `alloc` (Vec, Box, etc.).
+    use crate::memory::{self, BootInfoFrameAllocator};
+    use crate::allocator;
+    use x86_64::VirtAddr;
+
+    let phys_mem_offset = VirtAddr::new(_boot_info.physical_memory_offset);
+    let mut mapper = unsafe { memory::init(phys_mem_offset) };
+    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&_boot_info.memory_map) };
+
+    allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization in tests failed");
+
     test_main();
     hlt_loop();
 }
