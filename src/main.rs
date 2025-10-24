@@ -42,19 +42,26 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     {
         use rz_rust_os::fs::fs::FileSystem;
         use rz_rust_os::fs::mock_device::MockDevice;
-
+        
+        // static mutable buffer for the mock device
         static mut FS_BUF: [u8; 512 * 64] = [0u8; 512 * 64];
+        
         unsafe {
+
             let buf = &mut FS_BUF[..];
             let mut dev = MockDevice::new(buf);
+
             // format the mock device as a FAT12 volume
             let sectors = dev.sector_count() as u16;
             FileSystem::format(&mut dev, sectors).expect("format failed");
+
             // mount
             let mut fs = FileSystem::mount(&mut dev).expect("mount failed");
+
             // write two files
             fs.write_file("FOO     TXT", b"Hello from kernel - FOO").expect("write foo failed");
             fs.write_file("BAR     TXT", b"Second file contents").expect("write bar failed");
+
             // read them back
             if let Ok(data) = fs.read_file("FOO     TXT") {
                 let s = core::str::from_utf8(&data).unwrap_or("<invalid utf8>");
@@ -64,6 +71,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
                 let s = core::str::from_utf8(&data).unwrap_or("<invalid utf8>");
                 println!("BAR => {}", s);
             }
+
             // list root
             let list = fs.list_root();
             println!("Root dir entries: {}", list.len());
