@@ -76,7 +76,7 @@ impl<'a, D: BlockDevice> FatTable<'a, D> {
         let offset = idx % 512;
         self.load_sector(sector_idx);
         // get next byte possibly in next sector
-        let mut next_byte = if offset + 1 < 512 { self.cache[offset+1] } else {
+        let next_byte = if offset + 1 < 512 { self.cache[offset+1] } else {
             // read next sector into temp
             let mut tmp = [0u8; 512];
             self.device.read_sector(self.start_lba + (sector_idx + 1) as u64, &mut tmp);

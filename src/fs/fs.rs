@@ -66,7 +66,6 @@ impl<'a, D: BlockDevice> FileSystem<'a, D> {
         // allocate clusters as needed, write data, update FAT and directory
         let bytes_per_sector = self.boot_sector.bytes_per_sector as usize;
         let sectors_per_cluster = self.boot_sector.sectors_per_cluster as usize;
-        let cluster_bytes = bytes_per_sector * sectors_per_cluster;
         let mut remaining = data.len();
         let mut pos = 0usize;
         // allocate clusters using a temporary FatTable and write data

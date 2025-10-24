@@ -62,6 +62,7 @@ impl Executor {
     }
 }
 
+#[allow(dead_code)]
 impl Executor {
     pub fn run(&mut self) -> ! {
         loop {

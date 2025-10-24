@@ -3,7 +3,7 @@ use core::ptr::null_mut;
 use x86_64::VirtAddr;
 use x86_64::structures::paging::{mapper::MapToError, FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB, };
 use fixed_size_block::FixedSizeBlockAllocator;
-use crate::allocator::bump::BumpAllocator;
+// use bump::BumpAllocator;
 
 pub mod fixed_size_block;
 pub mod bump;
@@ -69,7 +69,7 @@ impl<A> Locked<A> {
         }
     }
 
-    pub fn lock(&self) -> spin::MutexGuard<A> {
+    pub fn lock<'a>(&'a self) -> spin::MutexGuard<'a,A> {
         self.inner.lock()
     }
 }
