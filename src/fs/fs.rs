@@ -1,0 +1,211 @@
+use crate::fs::block_device::BlockDevice;
+use crate::fs::boot_sector::{BootSector, FatError};
+use crate::fs::fat_table::FatTable;
+use crate::fs::directory::{Directory, DirectoryEntry};
+use alloc::vec::Vec;
+use alloc::vec;
+use crate::fs::fat_constants::*;
+
+#[derive(Debug)]
+pub enum FsError {
+    Boot(FatError),
+    Io,
+    NotFound,
+    NoSpace,
+}
+
+impl From<FatError> for FsError {
+    fn from(e: FatError) -> Self { FsError::Boot(e) }
+}
+
+pub struct FileSystem<'a, D: BlockDevice> {
+    device: &'a mut D,
+    pub boot_sector: BootSector,
+}
+
+impl<'a, D: BlockDevice> FileSystem<'a, D> {
+    pub fn mount(device: &'a mut D) -> Result<Self, FsError> {
+        let mut buf = [0u8; 512];
+        device.read_sector(0, &mut buf);
+        let bs = BootSector::parse(&buf).map_err(|e| FsError::Boot(e))?;
+        // build fat and dir using computed LBAs
+        Ok(FileSystem { device, boot_sector: bs })
+    }
+
+    pub fn list_root(&mut self) -> Vec<DirectoryEntry> {
+        let mut dir = Directory::new(self.device, self.boot_sector.root_dir_start_lba as u64, self.boot_sector.max_root_dir_entries);
+        dir.list()
+    }
+
+    pub fn read_file(&mut self, name: &str) -> Result<Vec<u8>, FsError> {
+        // create Directory, find entry
+        let entry = {
+            let mut dir = Directory::new(self.device, self.boot_sector.root_dir_start_lba as u64, self.boot_sector.max_root_dir_entries);
+            dir.find(name).ok_or(FsError::NotFound)?
+        };
+        // follow chain and read clusters using a temporary FatTable
+        let chain = {
+            let mut fat = FatTable::new(self.device, self.boot_sector.fat_start_lba as u64, self.boot_sector.sectors_per_fat);
+            fat.get_chain(entry.start_cluster)
+        };
+        let mut out: Vec<u8> = Vec::new();
+        let bytes_per_sector = self.boot_sector.bytes_per_sector as usize;
+        for &cluster in chain.iter() {
+            let lba = self.boot_sector.data_start_lba as u64 + ((cluster as u64 - 2) * self.boot_sector.sectors_per_cluster as u64);
+            for s in 0..self.boot_sector.sectors_per_cluster as u64 {
+                let mut buf = vec![0u8; bytes_per_sector];
+                self.device.read_sector(lba + s, &mut buf);
+                out.extend_from_slice(&buf);
+            }
+        }
+        out.truncate(entry.file_size as usize);
+        Ok(out)
+    }
+
+    pub fn write_file(&mut self, name: &str, data: &[u8]) -> Result<(), FsError> {
+        // allocate clusters as needed, write data, update FAT and directory
+        let bytes_per_sector = self.boot_sector.bytes_per_sector as usize;
+        let sectors_per_cluster = self.boot_sector.sectors_per_cluster as usize;
+        let cluster_bytes = bytes_per_sector * sectors_per_cluster;
+        let mut remaining = data.len();
+        let mut pos = 0usize;
+        // allocate clusters using a temporary FatTable and write data
+        let mut first_cluster: Option<u16> = None;
+        let mut prev_cluster: Option<u16> = None;
+        {
+            let mut fat = FatTable::new(self.device, self.boot_sector.fat_start_lba as u64, self.boot_sector.sectors_per_fat);
+            while remaining > 0 {
+                let c = fat.alloc_cluster().ok_or(FsError::NoSpace)?;
+                if first_cluster.is_none() { first_cluster = Some(c); }
+                if let Some(pc) = prev_cluster { fat.write_entry(pc, c); }
+                prev_cluster = Some(c);
+                // write cluster data via fat table helper
+                let lba = self.boot_sector.data_start_lba as u64 + ((c as u64 - 2) * self.boot_sector.sectors_per_cluster as u64);
+                for s in 0..sectors_per_cluster as u64 {
+                    let start = pos;
+                    let end = core::cmp::min(pos + bytes_per_sector, data.len());
+                    let mut buf = [0u8; 512]; // bytes_per_sector is 512 in our format
+                    let slice = &data[start..end];
+                    buf[0..slice.len()].copy_from_slice(slice);
+                    fat.write_data_sector(lba + s, &buf);
+                    pos += slice.len();
+                    if pos >= data.len() { break; }
+                }
+                remaining = data.len() - pos;
+            }
+            // mark EOF
+            if let Some(last) = prev_cluster { fat.write_entry(last, 0xFFF); }
+            fat.flush().ok();
+        }
+        // write directory entry using a temporary Directory
+        if let Some(first) = first_cluster {
+            let mut dir = Directory::new(self.device, self.boot_sector.root_dir_start_lba as u64, self.boot_sector.max_root_dir_entries);
+            dir.create(name, first, data.len() as u32);
+            Ok(())
+        } else {
+            Err(FsError::NoSpace)
+        }
+    }
+
+    pub fn delete(&mut self, name: &str) -> Result<(), FsError> {
+        // find entry
+        let entry = {
+            let mut dir = Directory::new(self.device, self.boot_sector.root_dir_start_lba as u64, self.boot_sector.max_root_dir_entries);
+            dir.find(name).ok_or(FsError::NotFound)?
+        };
+        // free clusters
+        {
+            let mut fat = FatTable::new(self.device, self.boot_sector.fat_start_lba as u64, self.boot_sector.sectors_per_fat);
+            fat.free_cluster(entry.start_cluster);
+            fat.flush().ok();
+        }
+        // delete directory entry
+        let mut dir = Directory::new(self.device, self.boot_sector.root_dir_start_lba as u64, self.boot_sector.max_root_dir_entries);
+        dir.delete(name);
+        Ok(())
+    }
+
+    pub fn format(device: &mut D, total_sectors: u16) -> Result<(), FsError> {
+        // zero out disk
+        let zero = [0u8; 512];
+        let sectors = (device.sector_count()) as u64;
+        for s in 0..sectors {
+            device.write_sector(s, &zero);
+        }
+        // write boot sector with common FAT12 values
+        let bs = BootSector {
+            bytes_per_sector: BYTES_PER_SECTOR,
+            sectors_per_cluster: SECTORS_PER_CLUSTER_DEFAULT,
+            reserved_sectors: 1,
+            num_fats: NUM_FATS,
+            max_root_dir_entries: FAT12_MAX_ROOT_DIR_ENTRIES,
+            total_sectors,
+            sectors_per_fat: 9,
+            fat_start_lba: 1,
+            root_dir_start_lba: 1 + 9,
+            data_start_lba: 1 + 9 + (((224u32 * 32) + (512 - 1)) / 512),
+        };
+        let mut buf = [0u8; 512];
+        bs.serialize(&mut buf).map_err(|e| FsError::Boot(e))?;
+        device.write_sector(0, &buf);
+        // write empty FAT (zeroed)
+        let fat_sectors = bs.sectors_per_fat as u64;
+        for i in 0..fat_sectors {
+            device.write_sector(bs.fat_start_lba as u64 + i, &zero);
+        }
+        // write empty root dir (zeroed)
+        let root_sectors = (((bs.max_root_dir_entries as u32 * 32) + (512 - 1)) / 512) as u64;
+        for i in 0..root_sectors {
+            device.write_sector(bs.root_dir_start_lba as u64 + i, &zero);
+        }
+        Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test_case]
+    fn e2e_format_write_read_list_delete() {
+        static mut BUF: [u8; 512 * 64] = [0u8; 512 * 64];
+        unsafe {
+            let buf = &mut BUF[..];
+            let mut dev = crate::fs::mock_device::MockDevice::new(buf);
+            // format device
+            FileSystem::format(&mut dev, 2880).expect("format failed");
+            // mount
+            let mut fs = FileSystem::mount(&mut dev).expect("mount failed");
+            // write a small file
+            let data = b"hello world";
+            fs.write_file("HELLO   TXT", data).expect("write failed");
+            // read back
+            let read = fs.read_file("HELLO   TXT").expect("read failed");
+            assert_eq!(&read[..], &data[..]);
+            // list
+            let list = fs.list_root();
+            assert!(list.len() >= 1);
+            let mut found = false;
+            for e in list.iter() {
+                let name = e.name;
+                let mut nm = [0u8; 11];
+                nm[0..8].copy_from_slice(&e.name);
+                nm[8..11].copy_from_slice(&e.ext);
+                if &nm == b"HELLO   TXT" { found = true; }
+            }
+            assert!(found, "file not found in root listing");
+            // delete
+            fs.delete("HELLO   TXT").expect("delete failed");
+            let list2 = fs.list_root();
+            // file should no longer be present
+            let mut still = false;
+            for e in list2.iter() {
+                let mut nm = [0u8; 11];
+                nm[0..8].copy_from_slice(&e.name);
+                nm[8..11].copy_from_slice(&e.ext);
+                if &nm == b"HELLO   TXT" { still = true; }
+            }
+            assert!(!still, "file still present after delete");
+        }
+    }
+}
