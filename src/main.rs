@@ -54,7 +54,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
             let mut fs = FileSystem::mount(&mut dev).expect("mount failed");
             // write two files
             fs.write_file("FOO     TXT", b"Hello from kernel - FOO").expect("write foo failed");
-            fs.write_file("BAR     TXY", b"Second file contents").expect("write bar failed");
+            fs.write_file("BAR     TXT", b"Second file contents").expect("write bar failed");
             // read them back
             if let Ok(data) = fs.read_file("FOO     TXT") {
                 let s = core::str::from_utf8(&data).unwrap_or("<invalid utf8>");

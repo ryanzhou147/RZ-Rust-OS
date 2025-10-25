@@ -33,7 +33,7 @@ impl<'a, D: BlockDevice> Directory<'a, D> {
     pub fn new(device: &'a mut D, start_lba: u64, num_entries: u16) -> Self {
         Directory { device, start_lba, num_entries }
     }
-
+    
     fn read_entry_raw(&mut self, idx: usize, out: &mut [u8; 32]) {
         let entries_per_sector = 512 / 32;
         let sector_idx = idx / entries_per_sector;
