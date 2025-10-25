@@ -2,6 +2,7 @@ use crate::fs::block_device::BlockDevice;
 use crate::fs::boot_sector::{BootSector, FatError};
 use crate::fs::fat_table::FatTable;
 use crate::fs::directory::{Directory, DirectoryEntry};
+use crate::println;
 use alloc::vec::Vec;
 use alloc::vec;
 use crate::fs::fat_constants::*;
@@ -27,7 +28,13 @@ impl<'a, D: BlockDevice> FileSystem<'a, D> {
     pub fn mount(device: &'a mut D) -> Result<Self, FsError> {
         let mut buf = [0u8; 512];
         device.read_sector(0, &mut buf);
-        let bs = BootSector::parse(&buf).map_err(|e| FsError::Boot(e))?;
+        let bs = match BootSector::parse(&buf) {
+            Ok(b) => b,
+            Err(e) => {
+                println!("fs::mount: BootSector parse failed: {:?}", e);
+                return Err(FsError::Boot(e));
+            }
+        };
         // build fat and dir using computed LBAs
         Ok(FileSystem { device, boot_sector: bs })
     }
@@ -41,7 +48,14 @@ impl<'a, D: BlockDevice> FileSystem<'a, D> {
         // create Directory, find entry
         let entry = {
             let mut dir = Directory::new(self.device, self.boot_sector.root_dir_start_lba as u64, self.boot_sector.max_root_dir_entries);
-            dir.find(name).ok_or(FsError::NotFound)?
+            match dir.find(name) {
+                Some(e) => e,
+                None => {
+                    // Log missing file for easier debugging in kernel environment
+                    println!("fs::read_file: NotFound: '{}'", name);
+                    return Err(FsError::NotFound);
+                }
+            }
         };
         // follow chain and read clusters using a temporary FatTable
         let chain = {
@@ -74,7 +88,13 @@ impl<'a, D: BlockDevice> FileSystem<'a, D> {
         {
             let mut fat = FatTable::new(self.device, self.boot_sector.fat_start_lba as u64, self.boot_sector.sectors_per_fat);
             while remaining > 0 {
-                let c = fat.alloc_cluster().ok_or(FsError::NoSpace)?;
+                let c = match fat.alloc_cluster() {
+                    Some(cc) => cc,
+                    None => {
+                        println!("fs::write_file: NoSpace while allocating cluster for '{}'", name);
+                        return Err(FsError::NoSpace);
+                    }
+                };
                 if first_cluster.is_none() { first_cluster = Some(c); }
                 if let Some(pc) = prev_cluster { fat.write_entry(pc, c); }
                 prev_cluster = Some(c);
@@ -102,6 +122,7 @@ impl<'a, D: BlockDevice> FileSystem<'a, D> {
             dir.create(name, first, data.len() as u32);
             Ok(())
         } else {
+            println!("fs::write_file: NoSpace: unable to allocate any clusters for '{}'", name);
             Err(FsError::NoSpace)
         }
     }
@@ -110,7 +131,13 @@ impl<'a, D: BlockDevice> FileSystem<'a, D> {
         // find entry
         let entry = {
             let mut dir = Directory::new(self.device, self.boot_sector.root_dir_start_lba as u64, self.boot_sector.max_root_dir_entries);
-            dir.find(name).ok_or(FsError::NotFound)?
+            match dir.find(name) {
+                Some(e) => e,
+                None => {
+                    println!("fs::delete: NotFound: '{}'", name);
+                    return Err(FsError::NotFound);
+                }
+            }
         };
         // free clusters
         {
@@ -145,7 +172,13 @@ impl<'a, D: BlockDevice> FileSystem<'a, D> {
             data_start_lba: 1 + 9 + (((224u32 * 32) + (512 - 1)) / 512),
         };
         let mut buf = [0u8; 512];
-        bs.serialize(&mut buf).map_err(|e| FsError::Boot(e))?;
+        match bs.serialize(&mut buf) {
+            Ok(()) => {}
+            Err(e) => {
+                println!("fs::format: BootSector serialize failed: {:?}", e);
+                return Err(FsError::Boot(e));
+            }
+        }
         device.write_sector(0, &buf);
         // write empty FAT (zeroed)
         let fat_sectors = bs.sectors_per_fat as u64;
