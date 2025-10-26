@@ -64,7 +64,8 @@ extern "x86-interrupt" fn double_fault_handler(
 extern "x86-interrupt" fn timer_interrupt_handler(
     _stack_frame: InterruptStackFrame)
 {
-    print!(".");
+    // print!(".");
+    // uncomment if you want to see timer interrupts
 
     unsafe {
         PICS.lock()
