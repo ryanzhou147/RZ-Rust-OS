@@ -142,31 +142,4 @@ impl<'a, D: BlockDevice> Directory<'a, D> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    // using MockDeviceFixed in this test
-
-    #[test_case]
-    fn dir_create_serialize() {
-        static mut BUF: [u8; 512 * 2] = [0u8; 512 * 2];
-        unsafe {
-            let buf = &mut BUF[..];
-            let mut dev = crate::fs::mock_device::MockDevice::new(buf);
-            let mut dir = Directory::new(&mut dev, 0, 32);
-            dir.create("FOO     TXT", 2, 12);
-            dir.create("BAR     TXT", 3, 7);
-            let list = dir.list();
-            assert_eq!(list.len(), 2);
-            assert_eq!(list[0].start_cluster, 2);
-            assert_eq!(list[0].file_size, 12);
-            assert_eq!(list[1].start_cluster, 3);
-            assert_eq!(list[1].file_size, 7);
-            // serialize into a buffer and verify first entry bytes
-            let mut out = [0u8; 32*32];
-            dir.serialize(&mut out);
-            assert_eq!(&out[0..11], b"FOO     TXT");
-            assert_eq!(&out[32..43], b"BAR     TXT");
-        }
-    }
-}
+// Unit tests for Directory moved to tests/fs_integration.rs

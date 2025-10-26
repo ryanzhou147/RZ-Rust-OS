@@ -161,30 +161,4 @@ impl<'a, D: BlockDevice> FatTable<'a, D> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    // using MockDeviceFixed in this test
-
-    #[test_case]
-    fn fat12_read_write_simple() {
-        static mut BUF: [u8; 512 * 9] = [0u8; 512 * 9]; // 9 sectors FAT
-        unsafe {
-            let buf = &mut BUF[..];
-            let mut dev = crate::fs::mock_device::MockDevice::new(buf);
-            let mut fat = FatTable::new(&mut dev, 0, 9);
-            // write cluster 2->3, 3->EOF
-            fat.write_entry(2, 3);
-            fat.write_entry(3, 0xFFF);
-            let v2 = fat.read_entry(2);
-            let v3 = fat.read_entry(3);
-            assert_eq!(v2, 3);
-            assert_eq!(v3, 0xFFF);
-            let mut out = [0u16; 16];
-            let len = fat.get_chain_nonalloc(2, &mut out);
-            assert_eq!(len, 2);
-            assert_eq!(out[0], 2);
-            assert_eq!(out[1], 3);
-        }
-    }
-}
+// Unit tests for FAT table moved to tests/fs_integration.rs
