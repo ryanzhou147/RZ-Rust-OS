@@ -53,14 +53,14 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
             // mount
             let mut fs = FileSystem::mount(&mut dev).expect("mount failed");
             // write two files
-            fs.write_file("FOO     TXT", b"Hello from kernel - FOO").expect("write foo failed");
-            fs.write_file("BAR     TXT", b"Second file contents").expect("write bar failed");
+            fs.write_file("FOOTXT", b"Hello from kernel").expect("write foo failed");
+            fs.write_file("BARTXT", b"This contains the contents of the second file").expect("write bar failed");
             // read them back
-            if let Ok(data) = fs.read_file("FOO     TXT") {
+            if let Ok(data) = fs.read_file("FOOTXT") {
                 let s = core::str::from_utf8(&data).unwrap_or("<invalid utf8>");
                 println!("FOO => {}", s);
             }
-            if let Ok(data) = fs.read_file("BAR     TXT") {
+            if let Ok(data) = fs.read_file("BARTXT") {
                 let s = core::str::from_utf8(&data).unwrap_or("<invalid utf8>");
                 println!("BAR => {}", s);
             }
@@ -85,23 +85,22 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     println!("current reference count is {}", Rc::strong_count(&cloned_reference));
     core::mem::drop(reference_counted);
     println!("reference count is {} now", Rc::strong_count(&cloned_reference));
-
-    // let mut executor = Executor::new();
-    // executor.spawn(Task::new(example_task()));
-    // executor.spawn(Task::new(keyboard::print_keypresses()));
-    // executor.run();
     
     #[cfg(test)]
     test_main();
-
-    println!("It did not crash!");
-    rz_rust_os::hlt_loop();
+    
+    let mut executor = Executor::new();
+    executor.spawn(Task::new(example_task()));
+    executor.spawn(Task::new(keyboard::print_keypresses()));
+    executor.run();
 }
 
+#[allow(dead_code)]
 async fn async_number() -> u32 {
     42
 }
 
+#[allow(dead_code)]
 async fn example_task() {
     let number = async_number().await;
     println!("async number: {}", number);
