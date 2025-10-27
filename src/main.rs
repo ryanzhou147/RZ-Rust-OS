@@ -123,7 +123,6 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
         // Create a couple of files to demonstrate read/list/delete
         shell::shell_input("write foo.txt Hello from leaked FS");
         shell::shell_input("write bar.txt Second file contents");
-        // Demonstrate shell commands programmatically
         shell::shell_input("ls");
         shell::shell_input("read foo.txt");
         shell::shell_input("write baz.txt added by shell");

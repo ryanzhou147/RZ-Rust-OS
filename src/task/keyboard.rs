@@ -4,8 +4,9 @@ use futures_util::{
     stream::{Stream, StreamExt},
     task::AtomicWaker,
 };
-use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
+use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1, KeyCode};
 use spin::Mutex;
+use alloc::vec::Vec;
 use core::{
     pin::Pin,
     task::{Context, Poll},
@@ -16,8 +17,9 @@ use crate::task::shell::flush_keypresses;
 /// Stores incoming keyboard scancodes (from interrupt handler)
 static SCANCODE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
 
-/// Stores decoded characters (typed keys)
-static KEYPRESS_BUFFER: OnceCell<Mutex<ArrayQueue<char>>> = OnceCell::uninit();
+/// Stores decoded characters (typed keys) as a growable buffer so we can
+/// efficiently pop from the end when Backspace is pressed.
+static KEYPRESS_BUFFER: OnceCell<Mutex<Vec<char>>> = OnceCell::uninit();
 
 /// Used to wake the keyboard task when a new scancode arrives
 static WAKER: AtomicWaker = AtomicWaker::new();
@@ -82,7 +84,7 @@ pub async fn print_keypresses() {
     let mut scancodes = ScancodeStream::new();
     // Ensure the keypress buffer exists before we start consuming keys.
     KEYPRESS_BUFFER
-        .try_init_once(|| Mutex::new(ArrayQueue::new(256)))
+        .try_init_once(|| Mutex::new(Vec::with_capacity(256)))
         .ok();
     let mut keyboard = Keyboard::new(
         ScancodeSet1::new(),
@@ -101,13 +103,32 @@ pub async fn print_keypresses() {
                         // Echo to screen
                         print!("{}", character);
 
-                        // If Enter pressed, do nothing here; the shell will
-                        // consume the completed line via its own flush helper.
+                        // If Enter pressed, notify shell to flush
                         if character == '\n' || character == '\r' {
                             flush_keypresses();
                         }
                     }
-                    DecodedKey::RawKey(key) => print!("{:?}", key),
+                    DecodedKey::RawKey(key) => {
+                        // Map control keys like Backspace and Tab to characters
+                        match key {
+                            KeyCode::Backspace => {
+                                // Use ASCII BS so consumers can handle it
+                                keypresses_queue('\x08');
+                                // Erase last character on echo
+                                print!("backspacing");
+                            }
+                            KeyCode::Tab => {
+                                keypresses_queue('\t');
+                                print!("\t");
+                            }
+                            // Some scancode sets may produce Enter as a RawKey variant
+                            // but we already handle Enter when decoded to Unicode '\n'.
+                            other => {
+                                // Fallback: print debug for other non-unicode keys
+                                print!("{:?}", other);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -118,7 +139,12 @@ pub async fn print_keypresses() {
 fn keypresses_queue(c: char) {
     if let Ok(buf_cell) = KEYPRESS_BUFFER.try_get() {
         let buffer = buf_cell.lock();
-        let _ = buffer.push(c); // ignore if full
+        if c == '\x08' {
+            // Backspace: drop last buffered character if any
+            let _ = buffer.pop();
+        } else {
+            let _ = buffer.push(c); // ignore if full
+        }
     }
 }
 
