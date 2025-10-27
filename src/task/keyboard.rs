@@ -6,7 +6,6 @@ use futures_util::{
 };
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1, KeyCode};
 use spin::Mutex;
-use alloc::vec::Vec;
 use core::{
     pin::Pin,
     task::{Context, Poll},
@@ -17,9 +16,8 @@ use crate::task::shell::flush_keypresses;
 /// Stores incoming keyboard scancodes (from interrupt handler)
 static SCANCODE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
 
-/// Stores decoded characters (typed keys) as a growable buffer so we can
-/// efficiently pop from the end when Backspace is pressed.
-static KEYPRESS_BUFFER: OnceCell<Mutex<Vec<char>>> = OnceCell::uninit();
+/// Stores decoded characters (typed keys)
+static KEYPRESS_BUFFER: OnceCell<Mutex<ArrayQueue<char>>> = OnceCell::uninit();
 
 /// Used to wake the keyboard task when a new scancode arrives
 static WAKER: AtomicWaker = AtomicWaker::new();
@@ -84,7 +82,7 @@ pub async fn print_keypresses() {
     let mut scancodes = ScancodeStream::new();
     // Ensure the keypress buffer exists before we start consuming keys.
     KEYPRESS_BUFFER
-        .try_init_once(|| Mutex::new(Vec::with_capacity(256)))
+        .try_init_once(|| Mutex::new(ArrayQueue::new(256)))
         .ok();
     let mut keyboard = Keyboard::new(
         ScancodeSet1::new(),
