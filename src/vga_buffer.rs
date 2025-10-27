@@ -93,7 +93,7 @@ impl Writer {
             }
             0x08 => {
                 // backspace: move cursor back one and clear that cell
-                if self.column_position == 0 {
+                if self.column_position <= 2 {
                     return;
                 }
                 self.column_position -= 1;
