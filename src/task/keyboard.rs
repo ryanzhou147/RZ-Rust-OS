@@ -4,6 +4,7 @@ use futures_util::{
     stream::{Stream, StreamExt},
     task::AtomicWaker,
 };
+use alloc::vec::Vec;
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1, KeyCode};
 use spin::Mutex;
 use core::{
@@ -138,8 +139,22 @@ fn keypresses_queue(c: char) {
     if let Ok(buf_cell) = KEYPRESS_BUFFER.try_get() {
         let buffer = buf_cell.lock();
         if c == '\x08' {
-            // Backspace: drop last buffered character if any
-            let _ = buffer.pop();
+            // Backspace: remove the most recently queued character.
+            // ArrayQueue is FIFO; to remove the newest element we must
+            // drain the queue into a temporary Vec, drop the last item,
+            // then push the remaining items back in order.
+            let mut tmp: Vec<char> = Vec::new();
+            while let Some(ch) = buffer.pop() {
+                tmp.push(ch);
+            }
+            // drop the last (newest) element if present
+            if !tmp.is_empty() {
+                tmp.pop();
+            }
+            // push remaining back into queue in original order
+            for ch in tmp.into_iter() {
+                let _ = buffer.push(ch);
+            }
         } else {
             let _ = buffer.push(c); // ignore if full
         }
