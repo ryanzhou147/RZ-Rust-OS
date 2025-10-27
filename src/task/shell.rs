@@ -2,11 +2,10 @@ use crate::{print, println};
 use alloc::{string::String, vec::Vec};
 use crate::task::keyboard::try_pop_key;
 use crate::fs::directory::DirectoryEntry;
-use crate::fs::block_device::BlockDevice;
 use crate::fs::fs::FileSystem;
 use crate::fs::mock_device::MockDevice;
 
-
+// formats file name to FAT 8.3 style
 fn format_8_3(name: &str) -> String {
     let up = name.to_ascii_uppercase();
     let mut parts = up.splitn(2, '.');
@@ -26,6 +25,8 @@ fn format_8_3(name: &str) -> String {
     s
 }
 
+
+// Converts DirectoryEntry back into name + extension string.
 fn display_entry_name(e: &DirectoryEntry) -> String {
     let base = core::str::from_utf8(&e.name).unwrap_or("").trim_end_matches(' ');
     let ext = core::str::from_utf8(&e.ext).unwrap_or("").trim_end_matches(' ');
@@ -40,9 +41,8 @@ fn display_entry_name(e: &DirectoryEntry) -> String {
     }
 }
 
-/// Drain any queued keypresses up to (but not including) a newline and
-/// return them as a String. If no characters are available, returns an
-/// empty string.
+/// Drain any queued keypresses up to newline and return as String. 
+/// If no characters are available, returns an empty string.
 pub fn flush_keypresses() {
     let mut s = String::new();
     while let Some(c) = try_pop_key() {
@@ -51,9 +51,8 @@ pub fn flush_keypresses() {
         }
         s.push(c);
     }
-    // Call the registered shell input handler (if any) with the assembled line.
-    // This intentionally uses a simple direct call so the keyboard flush triggers
-    // shell command execution immediately.
+    // Call the registered shell input handler with the assembled line.
+    // Simple direct call so the keyboard flush triggers shell command execution immediately.
     shell_input(&s);
 }
 
@@ -69,6 +68,8 @@ pub fn new(fs: &'static mut FileSystem<'static, MockDevice<'static>>) {
     unsafe {
         SHELL_FS_PTR = fs as *mut _;
     }
+    // print initial prompt
+    print!("$ ");
 }
 
 /// Execute a single input line against the registered FileSystem. If no
@@ -143,4 +144,6 @@ pub fn shell_input(s: &str) {
             }
         }
     }
+    // print prompt for next command
+    print!("$ ");
 }
