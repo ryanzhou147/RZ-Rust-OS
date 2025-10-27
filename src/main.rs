@@ -92,6 +92,45 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     let mut executor = Executor::new();
     executor.spawn(Task::new(example_task()));
     executor.spawn(Task::new(keyboard::print_keypresses()));
+    {
+        // Demo: create a leaked mock device + filesystem, register it with the
+        // shell, and run a few shell commands programmatically to demonstrate
+        // ls/read/write/delete.
+        use rz_rust_os::task::shell;
+        use rz_rust_os::fs::mock_device::MockDevice;
+        use rz_rust_os::fs::fs::FileSystem;
+
+        // Allocate a boxed buffer for the device and leak it to get a 'static
+        // slice for the MockDevice.
+        let boxed_buf = Box::new([0u8; 512 * 64]);
+        let leaked_buf: &'static mut [u8; 512 * 64] = Box::leak(boxed_buf);
+        let leaked_slice: &'static mut [u8] = &mut leaked_buf[..];
+
+        // Create a boxed MockDevice that borrows the leaked slice and leak it so
+        // we have a 'static device to hand to FileSystem.
+        let dev_box = Box::new(MockDevice::new(leaked_slice));
+        let shell_dev: &'static mut MockDevice = Box::leak(dev_box);
+
+        // Format and mount the filesystem on the leaked device.
+        let sectors = shell_dev.sector_count() as u16;
+        FileSystem::format(shell_dev, sectors).expect("format failed");
+        let fs_box = Box::new(FileSystem::mount(shell_dev).expect("mount failed"));
+        let shell_fs: &'static mut FileSystem<'static, MockDevice<'static>> = Box::leak(fs_box);
+            // Create a couple of files to demonstrate read/list/delete
+        shell_fs.write_file("FOO.TXT", b"Hello from leaked FS").ok();
+        shell_fs.write_file("BAR.TXT", b"Second file contents").ok();
+
+        // Register the filesystem with the shell.
+        shell::new(shell_fs);
+
+        // Demonstrate shell commands programmatically
+        shell::shell_input("ls");
+        shell::shell_input("read foo.txt");
+        shell::shell_input("write baz.txt added by shell");
+        shell::shell_input("ls");
+        shell::shell_input("delete baz.txt");
+        shell::shell_input("ls");
+    }
     executor.run();
 }
 

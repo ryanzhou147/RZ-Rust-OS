@@ -4,7 +4,6 @@ use futures_util::{
     stream::{Stream, StreamExt},
     task::AtomicWaker,
 };
-use alloc::string::String;
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
 use spin::Mutex;
 use core::{
@@ -12,6 +11,7 @@ use core::{
     task::{Context, Poll},
 };
 use crate::{print, println};
+use crate::task::shell::flush_keypresses;
 
 /// Stores incoming keyboard scancodes (from interrupt handler)
 static SCANCODE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
@@ -101,10 +101,10 @@ pub async fn print_keypresses() {
                         // Echo to screen
                         print!("{}", character);
 
-                        // If Enter pressed, flush and print the input
+                        // If Enter pressed, do nothing here; the shell will
+                        // consume the completed line via its own flush helper.
                         if character == '\n' || character == '\r' {
-                            let s = flush_keypresses();
-                            println!("\nYou typed: {}", s);
+                            let _ = flush_keypresses();
                         }
                     }
                     DecodedKey::RawKey(key) => print!("{:?}", key),
@@ -115,24 +115,21 @@ pub async fn print_keypresses() {
 }
 
 /// Adds a single keypress to the global queue
-pub fn keypresses_queue(c: char) {
+fn keypresses_queue(c: char) {
     if let Ok(buf_cell) = KEYPRESS_BUFFER.try_get() {
-        let mut buffer = buf_cell.lock();
+        let buffer = buf_cell.lock();
         let _ = buffer.push(c); // ignore if full
     }
 }
 
-/// Flushes (returns and clears) all queued characters up to Enter
-pub fn flush_keypresses() -> String {
-    let mut s = String::new();
+/// Try to pop a single keypress character from the internal buffer.
+/// Returns None if the buffer is empty or not initialized.
+pub fn try_pop_key() -> Option<char> {
     if let Ok(buf_cell) = KEYPRESS_BUFFER.try_get() {
-        let mut buffer = buf_cell.lock();
-        while let Some(c) = buffer.pop() {
-            if c == '\n' || c == '\r' {
-                break;
-            }
-            s.push(c);
-        }
+        let buffer = buf_cell.lock();
+        buffer.pop()
+    } else {
+        None
     }
-    s
 }
+
