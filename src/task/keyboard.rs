@@ -108,25 +108,9 @@ pub async fn print_keypresses() {
                         }
                     }
                     DecodedKey::RawKey(key) => {
-                        // Map control keys like Backspace and Tab to characters
-                        match key {
-                            KeyCode::Backspace => {
-                                // Use ASCII BS so consumers can handle it
-                                keypresses_queue('\x08');
-                                // Erase last character on echo
-                                print!("backspacing");
-                            }
-                            KeyCode::Tab => {
-                                keypresses_queue('\t');
-                                print!("\t");
-                            }
-                            // Some scancode sets may produce Enter as a RawKey variant
-                            // but we already handle Enter when decoded to Unicode '\n'.
-                            other => {
-                                // Fallback: print debug for other non-unicode keys
-                                print!("{:?}", other);
-                            }
-                        }
+                        // Ignore non-printable / modifier keys (CapsLock,
+                        // Shift, Ctrl, Alt, etc.). Uncomment for debugging:
+                        // print!("{:?}", key);
                     }
                 }
             }

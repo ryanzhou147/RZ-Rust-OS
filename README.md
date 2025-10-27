@@ -24,8 +24,6 @@ Implemented features (in chronological order):
 TODOs:
 
 - Implement a simple shell for interacting with the kernel (read, write, ls, delete)
-    - Implement KEYPRESS_BUFFER deletion from last character instead of first character
-    - Implement checks for backspace so it doesn't delete terminal input start "$ "
-    - Implement adding 4 space for tab in KEYPRESS_BUFFER
+    - Implement checks if writing files with a pre-existing name
 - Implement basic networking support (NIC driver + packet I/O stack)
 
