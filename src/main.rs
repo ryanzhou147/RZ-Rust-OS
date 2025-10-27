@@ -116,13 +116,13 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
         FileSystem::format(shell_dev, sectors).expect("format failed");
         let fs_box = Box::new(FileSystem::mount(shell_dev).expect("mount failed"));
         let shell_fs: &'static mut FileSystem<'static, MockDevice<'static>> = Box::leak(fs_box);
-            // Create a couple of files to demonstrate read/list/delete
-        shell_fs.write_file("FOO.TXT", b"Hello from leaked FS").ok();
-        shell_fs.write_file("BAR.TXT", b"Second file contents").ok();
+
 
         // Register the filesystem with the shell.
         shell::new(shell_fs);
-
+        // Create a couple of files to demonstrate read/list/delete
+        shell::shell_input("write foo.txt Hello from leaked FS");
+        shell::shell_input("write bar.txt Second file contents");
         // Demonstrate shell commands programmatically
         shell::shell_input("ls");
         shell::shell_input("read foo.txt");

@@ -43,7 +43,7 @@ fn display_entry_name(e: &DirectoryEntry) -> String {
 /// Drain any queued keypresses up to (but not including) a newline and
 /// return them as a String. If no characters are available, returns an
 /// empty string.
-pub fn flush_keypresses() -> String {
+pub fn flush_keypresses() {
     let mut s = String::new();
     while let Some(c) = try_pop_key() {
         if c == '\n' || c == '\r' {
@@ -55,7 +55,6 @@ pub fn flush_keypresses() -> String {
     // This intentionally uses a simple direct call so the keyboard flush triggers
     // shell command execution immediately.
     shell_input(&s);
-    s
 }
 
 // A plain global pointer to the registered FileSystem. We intentionally avoid

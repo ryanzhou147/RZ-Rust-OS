@@ -104,7 +104,7 @@ pub async fn print_keypresses() {
                         // If Enter pressed, do nothing here; the shell will
                         // consume the completed line via its own flush helper.
                         if character == '\n' || character == '\r' {
-                            let _ = flush_keypresses();
+                            flush_keypresses();
                         }
                     }
                     DecodedKey::RawKey(key) => print!("{:?}", key),
