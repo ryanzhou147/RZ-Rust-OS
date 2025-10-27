@@ -43,11 +43,6 @@ Derived values (compute after parsing BPB)
 - data_sectors = total_sectors - first_data_sector
 - total_clusters = data_sectors / sectors_per_cluster as u32
 
-FAT type detection (simplified)
-- If total_clusters < 4085 => FAT12
-- If 4085 <= total_clusters < 65525 => FAT16
-- Else => FAT32
-
 FAT12 entry layout (brief)
 - FAT12 entries are packed 12-bit values. For cluster n:
   - byte_index = (n * 3) / 2
@@ -62,16 +57,3 @@ Root directory entries
   - 0x00 : entry and all following entries are unused
   - 0xE5 : deleted entry
   - 0x2E : dot entry (".") or ("..") handling if present
-
-Notes and constraints
-- No journaling — write operations can corrupt the FS on power failure.
-- Single FAT copy reduces resilience but simplifies writes.
-- Flat root directory simplifies lookups; adding subdirectories later requires allocating their clusters in the data area.
-
-References
-- Microsoft FAT specification (for details on FAT12 packing and special values).
-
-
-"Why these choices?"
-- 512-byte sectors and FAT12 are ideal for simple floppy-like images (e.g., 1.44MB) and educational purposes.
-- Single FAT copy and flat directory keep the implementation small and easy to reason about while still supporting hierarchical data later if needed.
