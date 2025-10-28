@@ -80,6 +80,16 @@ impl<'a, D: BlockDevice> FileSystem<'a, D> {
     }
 
     pub fn write_file(&mut self, name: &str, data: &[u8]) -> Result<(), FsError> {
+        // check if file already exists in root directory
+        let mut dir_check = Directory::new(
+            self.device,
+            self.boot_sector.root_dir_start_lba as u64,
+            self.boot_sector.max_root_dir_entries,
+        );
+        if dir_check.find(name).is_some() {
+            println!("fs::write_file: AlreadyExists: '{}'", name);
+            return Err(FsError::Io);
+        }
         // allocate clusters as needed, write data, update FAT and directory
         let bytes_per_sector = self.boot_sector.bytes_per_sector as usize;
         let sectors_per_cluster = self.boot_sector.sectors_per_cluster as usize;
