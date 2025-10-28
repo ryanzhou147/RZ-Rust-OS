@@ -20,10 +20,9 @@ Implemented features (in chronological order):
 - Root-directory parsing and directory operations (src/fs/directory.rs)
 - High-level FileSystem API: mount/read/write/delete/list/format (src/fs/fs.rs)
 - Kernel demo that formats an in-memory device and creates/reads files (src/main.rs)
+- Simple shell for interacting with the kernel (read, write, ls, delete) (src/task/keyboard.rs, src/task/shell.rs)
 
 TODOs:
 
-- Implement a simple shell for interacting with the kernel (read, write, ls, delete)
-    - Implement checks if writing files with a pre-existing name
 - Implement basic networking support (NIC driver + packet I/O stack)
 
