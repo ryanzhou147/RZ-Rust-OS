@@ -1,5 +1,3 @@
-#![no_std]
-
 use core::fmt;
 
 pub type MacAddr = [u8; 6];
@@ -13,7 +11,7 @@ pub enum NetError {
     Unsupported,
 }
 
-/// Device ↔ stack interface.
+/// Device <-> stack interface.
 pub trait NetworkDevice {
     /// Transmit a frame (copy-based). Returns Ok(()) on success.
     fn transmit(&mut self, frame: &[u8]) -> Result<()>;

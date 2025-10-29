@@ -12,6 +12,7 @@ pub enum FsError {
     Boot(FatError),
     FileAlreadyExists,
     FileNotFound,
+    NotFound,
     InvalidName,
     NoSpace,
 }

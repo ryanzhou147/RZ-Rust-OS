@@ -105,7 +105,7 @@ fn shell_write_read_delete_read_again() {
     match fs.read_file(name11) {
         Ok(_) => panic!("file still present after delete"),
         Err(e) => match e {
-            FsError::NotFound => {},
+            FsError::FileNotFound => {},
             other => panic!("unexpected error: {:?}", other),
         }
     }

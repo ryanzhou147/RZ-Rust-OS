@@ -1,5 +1,3 @@
-#![no_std]
-
 use crate::network::device::{NetworkDevice, MacAddr, Result, NetError};
 
 pub struct E1000 {
