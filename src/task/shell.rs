@@ -75,7 +75,11 @@ pub fn new(fs: *mut FileSystem<'static, MockDevice<'static>>) {
 
 /// Execute a single input line against the registered FileSystem. If no
 /// FileSystem was registered, this prints an error.
-pub fn shell_input(s: &str) {
+pub fn shell_input(s: &str) -> () {
+    if (s.len() == 0) {
+        print!("$ ");
+        return;
+    }
     let line_trim = s.trim();
     if line_trim.is_empty() { return; }
     let mut parts = line_trim.split_whitespace();
