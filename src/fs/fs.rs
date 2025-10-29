@@ -10,8 +10,9 @@ use crate::fs::fat_constants::*;
 #[derive(Debug)]
 pub enum FsError {
     Boot(FatError),
-    Io,
-    NotFound,
+    FileAlreadyExists,
+    FileNotFound,
+    InvalidName,
     NoSpace,
 }
 
@@ -55,8 +56,7 @@ impl<'a, D: BlockDevice> FileSystem<'a, D> {
                 Some(e) => e,
                 None => {
                     // Log missing file for easier debugging in kernel environment
-                    println!("fs::read_file: NotFound: '{}'", name);
-                    return Err(FsError::NotFound);
+                    return Err(FsError::FileNotFound);
                 }
             }
         };
@@ -80,6 +80,22 @@ impl<'a, D: BlockDevice> FileSystem<'a, D> {
     }
 
     pub fn write_file(&mut self, name: &str, data: &[u8]) -> Result<(), FsError> {
+        // Enforce that files must have a .txt extension.
+        // Accept either a human-readable name that ends with ".txt" (case-insensitive),
+        // or an already-formatted 8.3 name (11 characters) whose extension bytes 8..11 == "TXT".
+        let has_txt_ext = if name.len() == 11 {
+            // treat as 8.3 style (e.g. "FOO     TXT")
+            match name.get(8..11) {
+                Some(ext) => ext.eq_ignore_ascii_case("TXT"),
+                None => false,
+            }
+        } else {
+            name.to_ascii_lowercase().ends_with(".txt")
+        };
+        if !has_txt_ext {
+            return Err(FsError::InvalidName);
+        }
+
         // check if file already exists in root directory
         let mut dir_check = Directory::new(
             self.device,
@@ -87,8 +103,7 @@ impl<'a, D: BlockDevice> FileSystem<'a, D> {
             self.boot_sector.max_root_dir_entries,
         );
         if dir_check.find(name).is_some() {
-            println!("fs::write_file: AlreadyExists: '{}'", name);
-            return Err(FsError::Io);
+            return Err(FsError::FileAlreadyExists);
         }
         // allocate clusters as needed, write data, update FAT and directory
         let bytes_per_sector = self.boot_sector.bytes_per_sector as usize;
@@ -104,7 +119,6 @@ impl<'a, D: BlockDevice> FileSystem<'a, D> {
                 let c = match fat.alloc_cluster() {
                     Some(cc) => cc,
                     None => {
-                        println!("fs::write_file: NoSpace while allocating cluster for '{}'", name);
                         return Err(FsError::NoSpace);
                     }
                 };
@@ -135,7 +149,6 @@ impl<'a, D: BlockDevice> FileSystem<'a, D> {
             dir.create(name, first, data.len() as u32);
             Ok(())
         } else {
-            println!("fs::write_file: NoSpace: unable to allocate any clusters for '{}'", name);
             Err(FsError::NoSpace)
         }
     }
@@ -147,8 +160,7 @@ impl<'a, D: BlockDevice> FileSystem<'a, D> {
             match dir.find(name) {
                 Some(e) => e,
                 None => {
-                    println!("fs::delete: NotFound: '{}'", name);
-                    return Err(FsError::NotFound);
+                    return Err(FsError::FileNotFound);
                 }
             }
         };
