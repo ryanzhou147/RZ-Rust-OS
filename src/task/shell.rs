@@ -56,17 +56,18 @@ pub fn flush_keypresses() {
     shell_input(&s);
 }
 
-// A plain global pointer to the registered FileSystem. We intentionally avoid
-// OnceCell/Mutex/etc per your request; `new()` must be called early (single-
-// threaded init) with a leaked `'static` FileSystem reference.
+// A plain global pointer to the registered FileSystem.
 static mut SHELL_FS_PTR: *mut FileSystem<'static, MockDevice<'static>> = core::ptr::null_mut();
 
 /// Register a 'static FileSystem for the shell to use. Call this once during
 /// early boot after you have created/mounted a FileSystem with a 'static
-/// lifetime (for example via Box::leak).
-pub fn new(fs: &'static mut FileSystem<'static, MockDevice<'static>>) {
+/// lifetime.
+///
+/// Raw pointer here so callers (tests or init code) don't create
+/// overlapping mutable borrows when they keep a local `&'static mut` handle.
+pub fn new(fs: *mut FileSystem<'static, MockDevice<'static>>) {
     unsafe {
-        SHELL_FS_PTR = fs as *mut _;
+        SHELL_FS_PTR = fs;
     }
     // print initial prompt
     print!("$ ");
