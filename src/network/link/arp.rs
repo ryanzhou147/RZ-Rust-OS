@@ -53,7 +53,8 @@ pub fn handle_arp_packet(frame: &[u8], our_ip: Option<[u8;4]>, our_mac: Option<[
 
     // ARP payload starts at offset 14
     let arp = &frame[14..];
-    // hardware type (2), proto type (2), hlen (1), plen (1), opcode (2)
+    // hardware type (2), protocol type (2),
+    // hardware address length (1), protocol address length (1), operation code (2)
     let opcode = u16::from_be_bytes([arp[6], arp[7]]);
     let sender_hw = &arp[8..14];
     let sender_proto = &arp[14..18];
