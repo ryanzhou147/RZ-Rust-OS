@@ -22,7 +22,11 @@ Implemented features (in chronological order):
 - Kernel demo that formats an in-memory device and creates/reads files (src/main.rs)
 - Simple shell for interacting with the filesystem (read, write, ls, delete) (src/task/keyboard.rs, src/task/shell.rs)
 
-TODOs:
+TODOs (in order of priority):
 
 - Implement basic networking support (NIC driver + packet I/O stack)
+- Implement frame buffer graphics driver
+- Implement directory tree for filesystem
+- Implement mouse driver
+
 
