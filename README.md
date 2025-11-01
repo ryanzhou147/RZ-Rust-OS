@@ -25,6 +25,7 @@ Implemented features (in chronological order):
 TODOs (in order of priority):
 
 - Implement basic networking support (NIC driver + packet I/O stack)
+- Option to show physical/virtual memory locations of saved files
 - Implement frame buffer graphics driver
 - Implement directory tree for filesystem
 - Implement mouse driver
