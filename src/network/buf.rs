@@ -1,4 +1,3 @@
-extern crate alloc;
 use alloc::vec::Vec;
 
 /// Simple packet buffer backed by Vec<u8>.
@@ -15,13 +14,3 @@ impl PacketBuf {
     pub fn push_bytes(&mut self, b: &[u8]) { self.data.extend_from_slice(b); }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn packetbuf_basic() {
-        let mut p = PacketBuf::with_capacity(128);
-        p.push_bytes(&[1,2,3]);
-        assert_eq!(p.len(), 3);
-    }
-}

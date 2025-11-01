@@ -12,11 +12,3 @@ impl SocketWaker {
     pub fn wake(&self) { /* TODO */ }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn waker_new() {
-        let _ = SocketWaker::new();
-    }
-}

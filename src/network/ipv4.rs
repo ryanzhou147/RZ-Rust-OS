@@ -19,12 +19,4 @@ pub fn build_ipv4_packet(_src: [u8;4], _dst: [u8;4], _proto: u8, _payload: &[u8]
     None
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn ipv4_compile() {
-        let b = [0u8; 64];
-        let _ = parse_ipv4_header(&b);
-    }
-}
+

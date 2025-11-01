@@ -8,5 +8,3 @@ pub mod icmp;
 pub mod udp;
 pub mod sockets;
 pub mod checksums;
-pub mod network;
-pub use self::network::*;

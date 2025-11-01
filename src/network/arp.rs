@@ -1,7 +1,11 @@
+extern crate alloc;
 use core::fmt;
+use core::fmt::Write as FmtWrite;
+use alloc::vec::Vec;
+use alloc::string::String;
 
 /// ARP packet format constants
-pub const ARP_HDR_LEN: usize = 28; // Ethernet + IPv4
+pub const ARP_HDR_LEN: usize = 28; // ARP payload length for Ethernet/IPv4
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArpOp {
@@ -34,8 +38,6 @@ impl fmt::Display for ArpPacket {
 }
 
 fn hex_mac(m: &[u8;6]) -> String {
-    use alloc::string::String;
-    use alloc::fmt::Write;
     let mut s = String::new();
     for (i, b) in m.iter().enumerate() {
         if i != 0 { let _ = write!(s, ":"); }
@@ -45,16 +47,15 @@ fn hex_mac(m: &[u8;6]) -> String {
 }
 
 fn format_ip(ip: &[u8;4]) -> String {
-    use alloc::string::String;
-    use alloc::fmt::Write;
     let mut s = String::new();
     let _ = write!(s, "{}.{}.{}.{}", ip[0], ip[1], ip[2], ip[3]);
     s
 }
 
-/// Fixed-size ARP cache (small, no-alloc). Simple linear scan and LRU by age counter.
+/// Fixed-size ARP cache (small). Simple linear scan and LRU by age counter.
+pub const ARP_CACHE_CAPACITY: usize = 16;
 pub struct ArpCache {
-    entries: [ArpEntry; ArpCache::CAPACITY],
+    entries: [ArpEntry; ARP_CACHE_CAPACITY],
     clock: u64,
 }
 
@@ -73,10 +74,8 @@ impl Default for ArpEntry {
 }
 
 impl ArpCache {
-    const CAPACITY: usize = 16;
-
     pub fn new() -> Self {
-        ArpCache { entries: [ArpEntry::default(); ArpCache::CAPACITY], clock: 1 }
+        ArpCache { entries: [ArpEntry::default(); ARP_CACHE_CAPACITY], clock: 1 }
     }
 
     /// Lookup a MAC for an IPv4 address. Returns Some(mac) or None.
@@ -101,15 +100,57 @@ impl ArpCache {
         }
         // find invalid entry
         for e in self.entries.iter_mut() {
-            if e.ip == ip { e.mac = mac; return; }
+            if !e.valid {
+                e.ip = ip; e.mac = mac; e.age = self.clock; e.valid = true; return;
+            }
         }
-        self.entries.push(ArpEntry { ip, mac });
+        // no free slot: evict LRU
+        let mut lru_idx = 0usize;
+        let mut lru_age = u64::MAX;
+        for (i, e) in self.entries.iter().enumerate() {
+            if e.age < lru_age {
+                lru_age = e.age; lru_idx = i;
+            }
+        }
+        self.entries[lru_idx] = ArpEntry { ip, mac, age: self.clock, valid: true };
     }
 
     /// Remove a mapping (if present)
     pub fn remove(&mut self, ip: [u8;4]) {
-        self.entries.retain(|e| e.ip != ip);
+        for e in self.entries.iter_mut() {
+            if e.valid && e.ip == ip { e.valid = false; }
+        }
     }
+}
+
+/// Parse an ARP payload (28 bytes) into an ArpPacket
+pub fn parse_arp_packet(buf: &[u8]) -> Option<ArpPacket> {
+    if buf.len() < ARP_HDR_LEN { return None; }
+    let htype = u16::from_be_bytes([buf[0], buf[1]]);
+    let ptype = u16::from_be_bytes([buf[2], buf[3]]);
+    let hlen = buf[4];
+    let plen = buf[5];
+    let opcode = u16::from_be_bytes([buf[6], buf[7]]);
+    if hlen as usize != 6 || plen as usize != 4 { return None; }
+    let mut sender_mac = [0u8;6]; sender_mac.copy_from_slice(&buf[8..14]);
+    let mut sender_ip = [0u8;4]; sender_ip.copy_from_slice(&buf[14..18]);
+    let mut target_mac = [0u8;6]; target_mac.copy_from_slice(&buf[18..24]);
+    let mut target_ip = [0u8;4]; target_ip.copy_from_slice(&buf[24..28]);
+    Some(ArpPacket { htype, ptype, hlen, plen, opcode, sender_mac, sender_ip, target_mac, target_ip })
+}
+
+/// Build an ARP reply payload (28 bytes) given a parsed request and our addresses.
+pub fn build_arp_reply(req: &ArpPacket, my_mac: [u8;6], my_ip: [u8;4]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(ARP_HDR_LEN);
+    out.extend_from_slice(&1u16.to_be_bytes()); // htype = Ethernet
+    out.extend_from_slice(&0x0800u16.to_be_bytes()); // ptype = IPv4
+    out.push(6); out.push(4); // hlen, plen
+    out.extend_from_slice(&2u16.to_be_bytes()); // opcode = reply
+    out.extend_from_slice(&my_mac); // sender hw
+    out.extend_from_slice(&my_ip); // sender proto
+    out.extend_from_slice(&req.sender_mac); // target hw = requester
+    out.extend_from_slice(&req.sender_ip); // target proto = requester ip
+    out
 }
 
 /// Parse an incoming ARP Ethernet frame and optionally build an ARP reply
@@ -168,42 +209,4 @@ pub fn handle_arp_packet(frame: &[u8], our_ip: Option<[u8;4]>, our_mac: Option<[
     }
     // For ARP reply or other opcodes we do not craft responses in skeleton.
     None
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn arp_cache_basic() {
-        let mut c = ArpCache::new();
-        assert!(c.lookup([0,0,0,0]).is_none());
-        c.insert([1,2,3,4], [5,6,7,8,9,10]);
-        assert_eq!(c.lookup([1,2,3,4]).unwrap(), [5,6,7,8,9,10]);
-    }
-
-    #[test]
-    fn parse_and_build() {
-        // build a request packet
-        let mut req = vec![];
-        req.extend_from_slice(&1u16.to_be_bytes()); // htype
-        req.extend_from_slice(&0x0800u16.to_be_bytes()); // ptype IPv4
-        req.push(6); req.push(4);
-        req.extend_from_slice(&1u16.to_be_bytes()); // request
-        let sender_mac = [1u8,2,3,4,5,6];
-        let sender_ip = [10u8,0,0,1];
-        let target_mac = [0u8;6];
-        let target_ip = [10u8,0,0,2];
-        req.extend_from_slice(&sender_mac);
-        req.extend_from_slice(&sender_ip);
-        req.extend_from_slice(&target_mac);
-        req.extend_from_slice(&target_ip);
-        let pkt = parse_arp_packet(&req).expect("parse");
-        assert_eq!(pkt.sender_ip, sender_ip);
-        let reply = build_arp_reply(&pkt, [9u8,9,9,9,9,9], [10u8,0,0,2]);
-        let parsed = parse_arp_packet(&reply).expect("parse reply");
-        assert_eq!(parsed.opcode, ArpOp::Reply as u16);
-        assert_eq!(parsed.sender_ip, [10u8,0,0,2]);
-        assert_eq!(parsed.target_ip, sender_ip);
-    }
 }

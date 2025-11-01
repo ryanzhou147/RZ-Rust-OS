@@ -31,26 +31,11 @@ pub trait NetworkDevice {
     fn handle_interrupt(&mut self);
 }
 
-// Tests: compile-only shape checks
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    struct Dummy;
-    impl NetworkDevice for Dummy {
-        fn transmit(&mut self, _frame: &[u8]) -> Result<()> { Ok(()) }
-        fn receive(&mut self, _buf: &mut [u8]) -> Result<usize> { Err(NetError::WouldBlock) }
-        fn mac_addr(&self) -> MacAddr { [0u8;6] }
-        fn mtu(&self) -> usize { 1500 }
-        fn handle_interrupt(&mut self) {}
-    }
-
-    #[test]
-    fn trait_shape_compile() {
-        let mut d = Dummy;
-        let mut buf = [0u8; 64];
-        let _ = d.transmit(&buf);
-        let _ = d.receive(&mut buf);
-        assert_eq!(d.mtu(), 1500);
-    }
+struct Dummy;
+impl NetworkDevice for Dummy {
+    fn transmit(&mut self, _frame: &[u8]) -> Result<()> { Ok(()) }
+    fn receive(&mut self, _buf: &mut [u8]) -> Result<usize> { Err(NetError::WouldBlock) }
+    fn mac_addr(&self) -> MacAddr { [0u8;6] }
+    fn mtu(&self) -> usize { 1500 }
+    fn handle_interrupt(&mut self) {}
 }

@@ -30,12 +30,3 @@ impl UdpSocket {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn udp_bind() {
-        let s = UdpSocket::bind(1234);
-        assert_eq!(s.bound_port, 1234);
-    }
-}

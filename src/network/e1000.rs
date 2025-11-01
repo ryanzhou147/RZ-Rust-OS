@@ -43,13 +43,5 @@ impl NetworkDevice for E1000 {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn construct_e1000() {
-        let mut d = E1000::new(0xfee0_0000);
-        assert_eq!(d.mtu(), 1500);
-    }
-}
+

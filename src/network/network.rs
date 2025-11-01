@@ -1,14 +1,3 @@
-pub mod device;
-pub mod e1000;
-pub mod buf;
-pub mod ethernet;
-pub mod arp;
-pub mod ipv4;
-pub mod icmp;
-pub mod udp;
-pub mod sockets;
-pub mod checksums;
-
 /// Initialize the network stack with a device. (skeleton)
 use crate::network::config::NetConfig;
 
