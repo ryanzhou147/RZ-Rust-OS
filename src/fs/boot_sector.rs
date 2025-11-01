@@ -77,5 +77,3 @@ impl BootSector {
         Ok(())
     }
 }
-
-// Unit tests for BootSector moved to tests/fs_integration.rs

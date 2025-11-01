@@ -160,5 +160,3 @@ impl<'a, D: BlockDevice> FatTable<'a, D> {
         idx
     }
 }
-
-// Unit tests for FAT table moved to tests/fs_integration.rs
