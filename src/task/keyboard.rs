@@ -5,7 +5,6 @@ use futures_util::{
     task::AtomicWaker,
 };
 use alloc::vec::Vec;
-#[allow(unused_imports)]
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1, KeyCode};
 use spin::Mutex;
 use core::{
@@ -108,7 +107,6 @@ pub async fn print_keypresses() {
                             flush_keypresses();
                         }
                     }
-                    #[allow(unused_variables)]
                     DecodedKey::RawKey(key) => {
                         // Ignore non-printable / modifier keys (CapsLock,
                         // Shift, Ctrl, Alt, etc.). Uncomment for debugging:

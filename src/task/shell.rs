@@ -76,7 +76,7 @@ pub fn new(fs: *mut FileSystem<'static, MockDevice<'static>>) {
 /// Execute a single input line against the registered FileSystem. If no
 /// FileSystem was registered, this prints an error.
 pub fn shell_input(s: &str) -> () {
-    if s.len() == 0 {
+    if (s.len() == 0) {
         print!("$ ");
         return;
     }
