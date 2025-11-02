@@ -22,7 +22,7 @@ flowchart TD
         UDP["**udp.rs**<br> •UdpSocket::send_to() / recv_from()"]
         SOCK["**sockets.rs**<br> •SocketWaker::wake() / register()"]
         CS["**checksums.rs**<br> •ipv4_checksum() / udp_checksum()"]
-        TOP["**mod.rs**<br> •net::init() / net::poll()"]
+        TOP["**network.rs**<br> •net::init() / net::poll()"]
     end
 
     %% Relationships labelled with function-level arrows (concise)
