@@ -101,3 +101,24 @@ pub fn verify_udp_checksum(src: [u8;4], dst: [u8;4], udp: &[u8]) -> bool {
     let expected = udp_checksum(src, dst, udp);
     expected == ck_in
 }
+
+/// Compute ICMP/ICMP-like checksum (ones' complement) for the given buffer.
+/// Returns the 16-bit checksum value to write into the packet.
+pub fn compute_ck16(buf: &[u8]) -> u16 {
+    let mut sum: u32 = 0;
+    let mut i = 0usize;
+    while i + 1 < buf.len() {
+        let word = u16::from_be_bytes([buf[i], buf[i+1]]) as u32;
+        sum = sum.wrapping_add(word);
+        i += 2;
+    }
+    if i < buf.len() {
+        // odd length: pad low byte with zero
+        let word = u16::from_be_bytes([buf[i], 0u8]) as u32;
+        sum = sum.wrapping_add(word);
+    }
+    while (sum >> 16) != 0 {
+        sum = (sum & 0xffff) + (sum >> 16);
+    }
+    !(sum as u16)
+}
