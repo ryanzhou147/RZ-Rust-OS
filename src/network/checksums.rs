@@ -30,7 +30,7 @@ pub fn ipv4_checksum(_header: &[u8]) -> u16 {
     while (sum >> 16) != 0 {
         sum = (sum & 0xffff) + (sum >> 16);
     }
-    (!(sum as u16))
+    !(sum as u16)
 }
 
 /// Compute UDP checksum
