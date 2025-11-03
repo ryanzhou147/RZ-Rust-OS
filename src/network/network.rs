@@ -1,10 +1,15 @@
 use crate::network::ethernet::{parse_eth_header, build_eth_frame, ETHERTYPE_IPV4};
 use crate::network::ipv4::{parse_ipv4_header, build_ipv4_packet};
+use crate::network::checksums;
+use crate::network::udp::UdpSocket;
+use crate::network::arp::ArpCache;
+use crate::network::device::Result as NetResult;
 
 extern crate alloc;
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 use crate::network::device::{NetworkDevice, NetError};
 
 /// Opaque pointer to the active device. We keep a raw pointer to avoid
@@ -16,6 +21,87 @@ use crate::network::device::{NetworkDevice, NetError};
 /// a spin `Mutex` guarded by a `OnceCell`. This keeps the storage safe to access
 /// from different execution contexts while avoiding raw fat-pointer global issues.
 static DEVICE: OnceCell<Mutex<Box<dyn NetworkDevice + Send>>> = OnceCell::uninit();
+
+/// Simple UDP socket registry (vector protected by spin mutex). This is a
+/// very small registry used by `poll_device` to find a socket bound to a
+/// destination port and enqueue incoming datagrams.
+static UDP_SOCKETS: OnceCell<Mutex<Vec<crate::network::udp::UdpSocket>>> = OnceCell::uninit();
+
+/// Register a `UdpSocket` into the global socket registry. Returns `true` on
+/// success. Registration will fail (return false) if another socket is
+/// already bound to the same port.
+pub fn register_udp_socket(sock: crate::network::udp::UdpSocket) -> bool {
+    let port = sock.bound_port();
+    // ensure registry is initialized
+    let _ = UDP_SOCKETS.try_init_once(|| Mutex::new(Vec::new()));
+    if let Ok(m) = UDP_SOCKETS.try_get() {
+        let mut vec = m.lock();
+        // prevent duplicate bindings
+        if vec.iter().any(|s| s.bound_port() == port) {
+            return false;
+        }
+        vec.push(sock);
+        return true;
+    }
+    false
+}
+
+/// Unregister a socket bound to `port`. Returns `true` if a socket was
+/// removed, `false` if none was bound.
+pub fn unregister_udp_socket(port: u16) -> bool {
+    if let Ok(m) = UDP_SOCKETS.try_get() {
+        let mut vec = m.lock();
+        if let Some(idx) = vec.iter().position(|s| s.bound_port() == port) {
+            vec.remove(idx);
+            return true;
+        }
+    }
+    false
+}
+
+/// Convenience handle returned to callers after binding. The handle holds the
+/// bound port and performs operations by locking the global socket registry.
+pub struct UdpHandle {
+    pub port: u16,
+}
+
+impl UdpHandle {
+    /// Send data from `src_ip` to `dst_ip:dst_port` using the underlying
+    /// socket registered for `self.port`. Returns NetResult as the socket
+    /// implementation.
+    pub fn send_to(&self, src_ip: [u8;4], dst_ip: [u8;4], dst_port: u16, data: &[u8], device: &mut dyn NetworkDevice, arp: &mut ArpCache) -> NetResult<()> {
+        if let Ok(m) = UDP_SOCKETS.try_get() {
+            let mut vec = m.lock();
+            if let Some(s) = vec.iter_mut().find(|s| s.bound_port() == self.port) {
+                return s.send_to(src_ip, dst_ip, dst_port, data, device, arp);
+            }
+        }
+        Err(NetError::WouldBlock)
+    }
+
+    /// Try to receive a packet from the bound socket. Returns the payload and
+    /// source (ip, port) if available.
+    pub fn recv_from(&self) -> Option<(Vec<u8>, ([u8;4], u16))> {
+        if let Ok(m) = UDP_SOCKETS.try_get() {
+            let mut vec = m.lock();
+            if let Some(s) = vec.iter_mut().find(|s| s.bound_port() == self.port) {
+                return s.recv_from();
+            }
+        }
+        None
+    }
+}
+
+/// Bind and register a UDP socket in one step. Returns a `UdpHandle` on
+/// success or `None` if the port is already bound.
+pub fn bind_udp_socket(port: u16) -> Option<UdpHandle> {
+    let sock = UdpSocket::bind(port);
+    if register_udp_socket(sock) {
+        Some(UdpHandle { port })
+    } else {
+        None
+    }
+}
 
 /// Initialize the network stack with a concrete device. The device is boxed and
 /// stored globally for later polling. The device type must implement `Send` so
@@ -58,8 +144,25 @@ pub fn poll_device(dev: &mut dyn NetworkDevice) {
                                         }
                                     }
                                 }
+                                17 => {
+                                    // UDP: verify checksum then dispatch to matching socket
+                                    if checksums::verify_udp_checksum(ip_hdr.src, ip_hdr.dst, ip_payload) {
+                                        if let Some((src_port, dst_port, payload)) = crate::network::udp::UdpSocket::parse_udp_packet(ip_payload) {
+                                            // try to find a registered socket and enqueue
+                                            if let Ok(mutex) = UDP_SOCKETS.try_get() {
+                                                let mut vec = mutex.lock();
+                                                for s in vec.iter_mut() {
+                                                    if s.bound_port() == dst_port {
+                                                        s.enqueue_incoming(ip_hdr.src, src_port, payload);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                                 _ => {
-                                    // TODO: handle UDP/TCP/etc
+                                    // TODO: handle TCP/other protocols
                                 }
                             }
                         }
