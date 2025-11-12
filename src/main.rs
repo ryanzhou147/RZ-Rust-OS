@@ -19,8 +19,12 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use rz_rust_os::allocator;
     use x86_64::VirtAddr;
 
-    println!("Hello World{}", "!");
     rz_rust_os::init();
+    rz_rust_os::vga_buffer::set_reserved_top_rows(2);
+    rz_rust_os::vga_buffer::hide_hardware_cursor();
+    rz_rust_os::vga_buffer::set_row(0, "RZ Rust OS");
+    rz_rust_os::vga_buffer::set_row(1, "Type \"help\" for a list of commands.");
+    rz_rust_os::vga_buffer::normalize_header();
 
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
     let mut mapper = unsafe { memory::init(phys_mem_offset) };
@@ -41,6 +45,8 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
         use rz_rust_os::task::shell;
         use rz_rust_os::fs::mock_device::MockDevice;
         use rz_rust_os::fs::fs::FileSystem;
+
+    // Header already written above via VGA helpers.
 
         // Allocate a boxed buffer for the device and leak it to get a 'static
         // slice for the MockDevice.

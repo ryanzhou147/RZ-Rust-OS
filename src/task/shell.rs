@@ -70,7 +70,17 @@ pub fn new(fs: *mut FileSystem<'static, MockDevice<'static>>) {
     unsafe {
         SHELL_FS_PTR = fs;
     }
-    // print initial prompt
+    // Reset the VGA writer, write a two-line header at rows 0 and 1, then
+    // position the shell start at row 3.
+    // Reserve top two rows for a fixed header, then reset and write the
+    // header lines.
+    crate::vga_buffer::set_reserved_top_rows(2);
+    crate::vga_buffer::reset_to_top();
+    crate::vga_buffer::hide_hardware_cursor();
+    crate::vga_buffer::set_row(0, "RZ Rust OS");
+    crate::vga_buffer::set_row(1, "Type 'help' for a list of commands");
+    crate::vga_buffer::set_start_row(3);
+    // print initial prompt at the start row
     print!("$ ");
 }
 
@@ -127,7 +137,8 @@ pub fn shell_input(s: &str) -> () {
                     let data = rest.join(" ");
                     let name11 = format_8_3(name);
                     match fs.write_file(&name11, data.as_bytes()) {
-                        Ok(()) => println!("wrote {} bytes", data.len()),
+                        // Ok(()) => println!("wrote {} bytes", data.len()),
+                        Ok(()) => {},
                         Err(FsError::InvalidName) => println!("write error: InvalidName, must end with .txt"),
                         Err(FsError::NoSpace) => println!("write error: NoSpace, file content empty"),
                         Err(e) => println!("write error: {:?}", e),
