@@ -1,4 +1,60 @@
-RZ-Rust-OS
+# 🦀 RZ Rust OS
+
+A minimal Rust-based operating system kernel built from scratch.
+
+---
+
+## 🧰 Try It Out
+
+### 1. Install QEMU
+
+#### **Linux (Ubuntu / Debian)**
+
+```bash
+sudo apt update
+sudo apt install qemu-system-x86
+```
+
+#### **macOS**
+
+Install with [Homebrew](https://brew.sh/):
+
+```bash
+brew install qemu
+```
+
+#### **Windows**
+
+1. Download the installer from [qemu.org/download](https://www.qemu.org/download/)
+2. Add QEMU to your system PATH
+3. Verify installation:
+
+   ```bash
+   qemu-system-x86_64 --version
+   ```
+
+---
+
+### 2. Run the OS
+
+#### **Linux / macOS**
+
+```bash
+sh -c 'set -e
+URL="https://raw.githubusercontent.com/ryanzhou147/RZ-Rust-OS/main/rz_rust_os.bin"
+if command -v curl >/dev/null 2>&1; then curl -fL -o rz_rust_os.bin "$URL"
+elif command -v wget >/dev/null 2>&1; then wget -O rz_rust_os.bin "$URL"
+else echo "Please install curl or wget" >&2; exit 1; fi
+qemu-system-x86_64 -m 512 -serial stdio -drive format=raw,file=rz_rust_os.bin'
+```
+#### **Windows**
+
+```bash
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ryanzhou147/RZ-Rust-OS/main/rz_rust_os.bin" -OutFile "rz_rust_os.bin"
+qemu-system-x86_64.exe -m 512 -serial stdio -drive format=raw,file=rz_rust_os.bin
+```
+
+---
 
 Implemented features (in chronological order):
 
