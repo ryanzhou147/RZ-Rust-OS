@@ -14,6 +14,7 @@ pub enum FsError {
     FileNotFound,
     InvalidName,
     NoSpace,
+    NoContent,
 }
 
 impl From<FatError> for FsError {
@@ -119,7 +120,7 @@ impl<'a, D: BlockDevice> FileSystem<'a, D> {
                 let c = match fat.alloc_cluster() {
                     Some(cc) => cc,
                     None => {
-                        return Err(FsError::NoSpace);
+                        return Err(FsError::NoContent);
                     }
                 };
                 if first_cluster.is_none() { first_cluster = Some(c); }
