@@ -4,6 +4,7 @@ use crate::task::keyboard::try_pop_key;
 use crate::fs::directory::DirectoryEntry;
 use crate::fs::fs::FileSystem;
 use crate::fs::mock_device::MockDevice;
+use crate::fs::fs::FsError;
 
 // formats file name to FAT 8.3 style
 fn format_8_3(name: &str) -> String {
@@ -127,6 +128,8 @@ pub fn shell_input(s: &str) -> () {
                     let name11 = format_8_3(name);
                     match fs.write_file(&name11, data.as_bytes()) {
                         Ok(()) => println!("wrote {} bytes", data.len()),
+                        Err(FsError::InvalidName) => println!("write error: InvalidName, must end with .txt"),
+                        Err(FsError::NoSpace) => println!("write error: NoSpace, file content empty"),
                         Err(e) => println!("write error: {:?}", e),
                     }
                 } else {
