@@ -16,7 +16,6 @@ pub mod vga_buffer;
 pub mod fs;
 pub mod allocator;
 pub mod task;
-pub mod network;
 
 pub fn init() {
     gdt::init();
