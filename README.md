@@ -1,63 +1,50 @@
-# 🦀 RZ Rust OS
+# RZ-Rust-OS
 
-A minimal Rust-based operating system kernel built from scratch.
+Bare-metal x86_64 operating system written from scratch in Rust. Features custom BIOS bootloader, virtual memory with heap allocation, FAT12 filesystem, and async task executor.
 
----
+## Quick Start
 
-## 🧰 Try It Out
-
-### 1. Install QEMU
-
-#### **Linux (Ubuntu / Debian)**
-
+**Install QEMU:**
 ```bash
-sudo apt update
+# Linux
 sudo apt install qemu-system-x86
-```
 
-#### **macOS**
-
-Install with [Homebrew](https://brew.sh/):
-
-```bash
+# macOS
 brew install qemu
+
+# Windows: download from qemu.org/download and add to PATH
 ```
 
-#### **Windows**
-
-1. Download the installer from [qemu.org/download](https://www.qemu.org/download/)
-2. Add QEMU to your system PATH
-3. Verify installation:
-
-   ```bash
-   qemu-system-x86_64 --version
-   ```
-
----
-
-### 2. Run the OS
-
-#### **Linux / macOS**
-
+**Run:**
 ```bash
-sh -c 'set -e
-URL="https://raw.githubusercontent.com/ryanzhou147/RZ-Rust-OS/main/rz_rust_os.bin"
-if command -v curl >/dev/null 2>&1; then curl -fL -o rz_rust_os.bin "$URL"
-elif command -v wget >/dev/null 2>&1; then wget -O rz_rust_os.bin "$URL"
-else echo "Please install curl or wget" >&2; exit 1; fi
-qemu-system-x86_64 -m 512 -serial stdio -drive format=raw,file=rz_rust_os.bin'
-```
-#### **Windows**
+# Linux / macOS
+curl -fLO https://raw.githubusercontent.com/ryanzhou147/RZ-Rust-OS/main/rz_rust_os.bin
+qemu-system-x86_64 -m 512 -serial stdio -drive format=raw,file=rz_rust_os.bin
 
-```bash
+# Windows (PowerShell)
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ryanzhou147/RZ-Rust-OS/main/rz_rust_os.bin" -OutFile "rz_rust_os.bin"
 qemu-system-x86_64.exe -m 512 -serial stdio -drive format=raw,file=rz_rust_os.bin
 ```
 
----
+## Architecture
+```
+src/
+├── main.rs          # Kernel entry
+├── vga_buffer.rs    # VGA text mode
+├── interrupts.rs    # IDT, PIC, keyboard
+├── gdt.rs           # Global descriptor table
+├── memory.rs        # Paging, virtual memory
+├── allocator/       # Heap allocators
+├── task/            # Async executor, shell
+└── fs/              # FAT12 filesystem
+    ├── block_device.rs
+    ├── boot_sector.rs
+    ├── fat_table.rs
+    ├── directory.rs
+    └── fs.rs
+```
 
-Implemented features (in chronological order):
-
+## Implemented features (in chronological order):
 - Bare bones / freestanding Rust binary (crate attributes, no_std) (src/main.rs)
 - Minimal kernel / bootable image (kernel entry and bootloader wiring) (src/main.rs)
 - VGA text mode printing helper (safe VGA wrapper) (src/vga_buffer.rs)
@@ -77,13 +64,9 @@ Implemented features (in chronological order):
 - High-level FileSystem API: mount/read/write/delete/list/format (src/fs/fs.rs)
 - Kernel demo that formats an in-memory device and creates/reads files (src/main.rs)
 - Simple shell for interacting with the filesystem (read, write, ls, delete) (src/task/keyboard.rs, src/task/shell.rs)
-
-TODOs (in order of priority):
-
+## TODOs (in order of priority):
 - Implement basic networking support (NIC driver + packet I/O stack)
 - Option to show physical/virtual memory locations of saved files
 - Implement frame buffer graphics driver
 - Implement directory tree for filesystem
 - Implement mouse driver
-
-
